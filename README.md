@@ -1,2 +1,2 @@
 # goes-cues
-Comparison of GOES satellite observations against CUES station data
+Comparison of [GOES](https://www.goes-r.gov/) satellite observations against [CUES](https://snow.ucsb.edu/) station data
