@@ -44,7 +44,7 @@ METHODS
 
 # To do:
 # - Fix longturner2008() so we can include Qsi as an input for that method
-#
+# - Fix konzelmann1994() (I suspect I have a typo or coefficients are wrong?)
 #
 #-------------------------------------------------------#
 
@@ -70,7 +70,7 @@ def ensemble(Ta,RH,elev):
     lw_ensemble['lclr_swinbank1963'] = swinbank1963(Ta)
     lw_ensemble['lclr_dilleyobrien1998'] = dilleyobrien1998(Ta,RH)
     lw_ensemble['lclr_maykutchurch1973'] = maykutchurch1973(Ta)
-    lw_ensemble['lclr_konzelmann1994'] = konzelmann1994(Ta,RH)
+    #lw_ensemble['lclr_konzelmann1994'] = konzelmann1994(Ta,RH)
     lw_ensemble['lclr_campbellnorman1998'] = campbellnorman1998(Ta)
     #lw_ensemble['lclr_longturner2008'] = longturner2008(Ta,RH,Qsi)
     lw_ensemble['lclr_ohmura1982'] = ohmura1982(Ta)
