@@ -45,7 +45,9 @@ METHODS
 # To do:
 # - Fix longturner2008() so we can include Qsi as an input for that method
 # - Fix konzelmann1994() (I suspect I have a typo or coefficients are wrong?)
-#
+# - Add other methods?
+
+
 #-------------------------------------------------------#
 
 import pandas as pd
@@ -86,23 +88,23 @@ def ensemble(Ta,RH,elev):
     return lw_ensemble
 
 #----------------- Ancillary functions -------------------# 
-def eo(Ta,RH):
+def vap_pres(Ta,RH):
     '''Calculate actual vapor pressure [kPa] from T [K] and RH [%]
     Clausius-Clapeyron e_sat in mb (hPa) from Murray 1967'''
-    es = 6.1078 * np.exp((17.2693882*(Ta-273.15)) / (Ta-35.86)) # saturated vapor pressure [hPa]
-    return (RH/100 * es) / 10 # actual vapor pressure [kPa]
+    sat_vap_pres = 6.1078 * np.exp((17.2693882*(Ta-273.15)) / (Ta-35.86)) # saturated vapor pressure [hPa]
+    return (RH/100 * sat_vap_pres) / 10 # actual vapor pressure [kPa]
 
 def prata1996_w(Ta,RH):
     '''from Prata 1996'''
-    return (465 * eo(Ta,RH)) / Ta # note: corrected equation constant to be 465 instead of 4650 (error in Flerchinger Table 1 footnote c)
+    return (465 * vap_pres(Ta,RH)) / Ta # note: corrected equation constant to be 465 instead of 4650 (error in Flerchinger Table 1 footnote c)
 
 def L_sb(e,T):
-    '''Calculate radiance [W m^-2] given an emissivity and temperature [K]'''
+    '''Calculate radiance [W m^-2] given an emissivity and temperature [K] w/ Stefan-Boltzmann law'''
     sb = 5.67 * (10**-8)        # Stefan-Boltzmann constant (J/s/m^2/K^4)
     return e * sb * T**4
     
 def e_sb(L,T):
-    '''Calculate emissivity given a radiance [W m^-2] and temperature [K]'''
+    '''Calculate emissivity given a radiance [W m^-2] and temperature [K] w/ Stefan-Boltzmann law'''
     sb = 5.67 * (10**-8)        # Stefan-Boltzmann constant (J/s/m^2/K^4)
     return Lclr/(sb*(Ta**4)) 
      
@@ -114,21 +116,21 @@ def angstrom1918(Ta,RH):
     a = 0.83
     b = 0.18 
     c = 0.67  # note: corrected coefficient c to be 0.67 instead of 0.067 (error in Flerchinger Table 1)
-    e_clr = (a - b*10**(-1*c*eo(Ta,RH)))
+    e_clr = (a - b*10**(-1*c*vap_pres(Ta,RH)))
     return L_sb(e_clr,Ta)
 
 def brunt1932(Ta,RH):
     '''Brunt (1932)'''
     a = 0.52
     b = 0.205
-    e_clr = (a + b*np.sqrt(eo(Ta,RH)))
+    e_clr = (a + b*np.sqrt(vap_pres(Ta,RH)))
     return L_sb(e_clr,Ta)
 
 def brutsaert1975(Ta,RH):
     '''Brutsaert (1975)'''
     a = 1.723
     b = (1/7)
-    e_clr = a * (eo(Ta,RH)/Ta)**(b);
+    e_clr = a * (vap_pres(Ta,RH)/Ta)**(b);
     return L_sb(e_clr,Ta)
 
 def garratt1992(Ta,RH):
@@ -136,7 +138,7 @@ def garratt1992(Ta,RH):
     a = 0.79
     b = 0.17
     c = 0.96
-    e_clr = a - b*np.exp(-1*c*eo(Ta,RH));
+    e_clr = a - b*np.exp(-1*c*vap_pres(Ta,RH));
     return L_sb(e_clr,Ta)
 
 def idsojackson1969(Ta,RH):
@@ -151,7 +153,7 @@ def idso1981(Ta,RH):
     a = 0.70
     b = 5.95 * 10**-4
     c = 1500
-    e_clr = a + (b*eo(Ta,RH)*np.exp(c/Ta));
+    e_clr = a + (b*vap_pres(Ta,RH)*np.exp(c/Ta));
     return L_sb(e_clr,Ta)
 
 def iziomon2003(Ta,RH,elev):
@@ -166,7 +168,7 @@ def iziomon2003(Ta,RH,elev):
     Myz = (e-b)/(f-c) # change in second parameters with elevation change
     X = Mxz*(elev - c) + a
     Y = Myz*(elev - c) + b
-    e_clr = 1 - X*np.exp(-Y*eo(Ta,RH)/Ta)
+    e_clr = 1 - X*np.exp(-Y*vap_pres(Ta,RH)/Ta)
     return L_sb(e_clr,Ta)
 
 def keding1989(Ta,RH):
@@ -174,7 +176,7 @@ def keding1989(Ta,RH):
     a = 0.92
     b = 0.7
     c = 1.2
-    e_clr = a - b*10**(-1*c*eo(Ta,RH));
+    e_clr = a - b*10**(-1*c*vap_pres(Ta,RH));
     return L_sb(e_clr,Ta)
 
 def niemela2001(Ta,RH):
@@ -183,8 +185,8 @@ def niemela2001(Ta,RH):
     b = 0.09
     c = 0.2
     d = 0.76
-    e_clr = a + b*(eo(Ta,RH)-c);
-    e_clr[eo(Ta,RH)<c] = a - d*(eo(Ta,RH)[eo(Ta,RH)<c]-c);
+    e_clr = a + b*(vap_pres(Ta,RH)-c);
+    e_clr[vap_pres(Ta,RH)<c] = a - d*(vap_pres(Ta,RH)[vap_pres(Ta,RH)<c]-c);
     return L_sb(e_clr,Ta)
 
 def prata1996(Ta,RH):
@@ -199,7 +201,7 @@ def satturlund1979(Ta,RH):
     '''Satturlund (1979)'''
     a = 1.08
     b = 2016
-    e_clr = a*(1-np.exp(-((10*eo(Ta,RH))**(Ta/b))));  # note: corrected so that b paramter is in the exponent ^(Ta/b), error in Flerchinger Table 1
+    e_clr = a*(1-np.exp(-((10*vap_pres(Ta,RH))**(Ta/b))));  # note: corrected so that b paramter is in the exponent ^(Ta/b), error in Flerchinger Table 1
     return L_sb(e_clr,Ta)
 
 def swinbank1963(Ta):
@@ -223,13 +225,13 @@ def maykutchurch1973(Ta):
     e_clr = a;
     return L_sb(e_clr,Ta)
 
-def konzelmann1994(Ta,RH):
-    '''Konzelmann et al. (1994) from Juszak and Pellicciotti (2013)'''
-    a = 0.23 # from Juszak and Pellicciotti (2013), clear-sky emittance of a completely dry atmosphere (calcualted by LOWTRAN7)
-    b = 0.484 # value from Juszak and Pellicciotti (2013), original value from Konzelmann et al. = 0.443
-    c = 1.8 #  value from Juszak and Pellicciotti (2013), original value from Konzelmann et al. = 1/8
-    e_clr = a + b*(1000*eo(Ta,RH)/Ta)**c; # why is there a factor of 1000 in there? unit conversion from kPa?
-    return L_sb(e_clr,Ta)
+#def konzelmann1994(Ta,RH):
+#    '''Konzelmann et al. (1994) from Juszak and Pellicciotti (2013)'''
+#    a = 0.23 # from Juszak and Pellicciotti (2013), clear-sky emittance of a completely dry atmosphere (calcualted by LOWTRAN7)
+#    b = 0.484 # value from Juszak and Pellicciotti (2013), original value from Konzelmann et al. = 0.443
+#    c = 1.8 #  value from Juszak and Pellicciotti (2013), original value from Konzelmann et al. = 1/8
+#    e_clr = a + b*(1000*vap_pres(Ta,RH)/Ta)**c; # factor of 1000 to convert vap_pres [kPa] to vap_pres [Pa]
+#    return L_sb(e_clr,Ta)
 
 def campbellnorman1998(Ta):
     '''Campbell and Norman (1998) as cited by Walter et al (2005)'''
@@ -253,7 +255,7 @@ def campbellnorman1998(Ta):
 #    k_array[Qsi<50] = kn      # set night time values to night k
 #
 #    Ccoeff = k_array + a*(RH)**b # here RH should be a percentage, not fractional
-#    e_clr = Ccoeff * (eo(Ta,RH)*10/Ta)**c;      # eo(Ta,TH) times 10 to convert from kPa to mb
+#    e_clr = Ccoeff * (vap_pres(Ta,RH)*10/Ta)**c;      # vap_pres(Ta,TH) times 10 to convert from kPa to mb
 #    return L_sb(e_clr,Ta)
 
 def ohmura1982(Ta):
@@ -266,7 +268,7 @@ def ohmura1982(Ta):
 def efimova1961(Ta,RH):
     '''Efimova (1961) as cited by Key et al (1996)'''
     a = 0.746
-    b = 0.0066 * 10 # multiply by 10 to account for eo in mb isntead of kPa
-    e_clr = a + b*eo(Ta,RH);
+    b = 0.0066 * 10 # multiply by 10 to account for vap_pres in mb isntead of kPa
+    e_clr = a + b*vap_pres(Ta,RH);
     return L_sb(e_clr,Ta)
 
