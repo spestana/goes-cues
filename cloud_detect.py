@@ -16,6 +16,9 @@ import xarray as xr
 # for longwave estimation functions
 import lw_clr
 
+# for optimization
+from scipy.optimize import minimize
+
 
 #----------------- Longwave comparison method for cloud detection -------------------#
 def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
@@ -97,29 +100,56 @@ def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
 	return LWd_pred, confusion_matrix, precision, recall, f1_score
 
 
-def optimize_lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev):
+
+def min_f1_score(threshold, *args):
+	''' Objective function for minimizing based on 1-f1_score of confusion matrix'''
+
+	Tair = args[0]
+	RH = args[1]
+	LWd_obs = args[2]
+	sun_flag_obs = args[3]
+	elev = args[4]
+
+	_, _, _, _, f1_score = lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold)
+
+	return (1 - f1_score)
+	
+	
+
+def optimize_lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, iterations=1):
 	'''
 	Try to optimize the threshold used in lw_cloud_detect for a given set of observations.
 	
-	Our objective function we want to minimize is the F1-score of the confusion matrix from the lw_cloud_detect method:
-	LWd_pred, confusion_matrix = lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold)
+	Our objective function we want to minimize is (1 - F1-score) of the confusion matrix from the lw_cloud_detect method:
+			LWd_pred, confusion_matrix, precision, recall, f1_score 
+			= cloud_detect.lw_cloud_detect(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev, threshold)
+
 	'''
+	optimized_thresholds = []
 	
-	# Generate a random boolean array to select approximately some % of the original data for testing
-	random_numbers = np.random.rand(len(Tair))
-	random_bools = random_numbers < 0.005 # adjust this to select more or 
+	for n in range(iterations):
+		# Generate a random boolean array to select approximately some % of the original data for testing
+		random_numbers = np.random.rand(len(Tair))
+		random_bools = random_numbers < 0.005 # adjust this to select more or 
 
-	# Select this random subset from the input data
-	Tair_sample = Tair[random_bools]
-	RH_sample = RH[random_bools]
-	LWd_obs_sample = LWd_obs[random_bools]
-	sun_flag_obs_sample = sun_flag_obs[random_bools]
+		# Select this random subset from the input data
+		Tair_sample = Tair[random_bools]
+		RH_sample = RH[random_bools]
+		LWd_obs_sample = LWd_obs[random_bools]
+		sun_flag_obs_sample = sun_flag_obs[random_bools]
 
-
+		# LWd_pred, confusion_matrix, precision, recall, f1_score = cloud_detect.lw_cloud_detect(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev, threshold)
+		res = minimize(
+					fun = min_f1_score,
+					x0=0,
+					args=(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev),
+					method='Nelder-Mead'
+		)
 	
-	optimized_threshold = None
 	
-	return optimized_threshold
+		optimized_thresholds.append(res)
+	
+	return optimized_thresholds
 
 
 #----------------- Surface temperature comparison method for cloud detection -------------------# 
