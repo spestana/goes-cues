@@ -12,7 +12,10 @@ Steven Pestana, June 2020 (spestana@uw.edu)
 import pandas as pd
 import numpy as np
 import xarray as xr
+
+# for longwave estimation functions
 import lw_clr
+
 
 #----------------- Longwave comparison method for cloud detection -------------------#
 def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
@@ -82,9 +85,41 @@ def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
 
 	# Compute the confusion matrix:
 	confusion_matrix = pd.crosstab(df['sun_actual'], df['sun_predicted'], rownames=['Observed'], colnames=['Predicted'])
+	# Evaluation metrics
+	tp = confusion_matrix[1][1] # true positives
+	fp = confusion_matrix[0][1] # false positives
+	fn = confusion_matrix[1][0] # false negatives
+	precision = tp / (tp + fp)
+	recall = tp / (tp + fn)
+	f1_score = 2 * ( (precision * recall)/(precision + recall) )
+	
+	
+	return LWd_pred, confusion_matrix, precision, recall, f1_score
 
-	return LWd_pred, confusion_matrix
 
+def optimize_lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev):
+	'''
+	Try to optimize the threshold used in lw_cloud_detect for a given set of observations.
+	
+	Our objective function we want to minimize is the F1-score of the confusion matrix from the lw_cloud_detect method:
+	LWd_pred, confusion_matrix = lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold)
+	'''
+	
+	# Generate a random boolean array to select approximately some % of the original data for testing
+	random_numbers = np.random.rand(len(Tair))
+	random_bools = random_numbers < 0.005 # adjust this to select more or 
+
+	# Select this random subset from the input data
+	Tair_sample = Tair[random_bools]
+	RH_sample = RH[random_bools]
+	LWd_obs_sample = LWd_obs[random_bools]
+	sun_flag_obs_sample = sun_flag_obs[random_bools]
+
+
+	
+	optimized_threshold = None
+	
+	return optimized_threshold
 
 
 #----------------- Surface temperature comparison method for cloud detection -------------------# 
