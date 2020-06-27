@@ -4,6 +4,8 @@ Comparison of [GOES](https://www.goes-r.gov/) satellite observations against [CU
 
 ![example plot](https://github.com/spestana/goes-cues/blob/master/goes-vs-cues.jpg "example plot")
 
+![flowchart](https://github.com/spestana/goes-cues/blob/master/flowchart.png "goes-cues flowchart")
+
 ---
 
 ### lw_clr.py
