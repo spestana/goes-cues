@@ -17,11 +17,11 @@ import xarray as xr
 import lw_clr
 
 # for optimization
-from scipy.optimize import minimize
+from scipy.optimize import minimize, minimize_scalar
 
 
 #----------------- Longwave comparison method for cloud detection -------------------#
-def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
+def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, lw_threshold=0, csi_threshold=0):
 	'''
 	Using ground-based observations of air temperature and relative humidity, run an ensemble of clear-sky downward longwave (LWd) estimation methods.
 	Then compare these methods against LWd observations at the site. 
@@ -52,25 +52,26 @@ def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
 	################################################################
 	### Now make a cloud flag where we think there's cloud cover ###
 	################################################################
-	# We can set a threshold of allowance above the ensemble mean estimated LWd value where we say there are still no clouds.
-	# (Defaulting to threshold = 0. I'm not sure what this value should be, so we can do some tests to find a good value later)
-
+		
+	# LW-based Clear-Sky Index, and cloud flag
+	# This CSI is a ratio of observed to estimated LWd+lw_threshold
+	# where we have clouds when LWd_observed > LWd_clearsky + lw_threshold (CSI > 1)
+	LWd_pred['CSI_lw_and_threshold'] = (['datetime'],  LWd_obs / (LWd_pred.lclr_mean + lw_threshold) )
 	# create array of zeros (cloud_flag = 0, no clouds)
 	cloud_flag = np.zeros_like(LWd_pred.lclr_mean.values) 
-
 	# Conditional statement to determine if we think we have clouds:
-	# if LWd_observed > LWd_clearsky + threshold
-	lw_cloud_condition = LWd_obs > LWd_pred.lclr_mean + threshold
-
-	# Set our cloud_flag = 1 whenever this condition is true
-	cloud_flag[lw_cloud_condition] = 1
-
+	# if CSI > 1 + csi_threshold
+	csi_cloud_condition = LWd_pred.CSI_lw_and_threshold > 1 + csi_threshold
+	# Set our simple cloud_flag = 1 whenever this condition is true
+	cloud_flag[csi_cloud_condition] = 1
 	# Add the cloud flag to the dataset
 	LWd_pred['cloud_flag'] = (['datetime'],  cloud_flag)
+	
 
 	##################################
 	### Compute a confusion matrix ###
 	##################################
+
 	# Predictions: get the cloud flag values where we know we're in daytime hours
 	y_pred = LWd_pred.cloud_flag.where(LWd_pred.day_flag == 1)
 	# (note that I am inverting the value of the cloud flag so it is now a "sun flag")
@@ -88,21 +89,26 @@ def lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold=0):
 
 	# Compute the confusion matrix:
 	confusion_matrix = pd.crosstab(df['sun_actual'], df['sun_predicted'], rownames=['Observed'], colnames=['Predicted'])
-	# Evaluation metrics
-	tp = confusion_matrix[1][1] # true positives
-	fp = confusion_matrix[0][1] # false positives
-	fn = confusion_matrix[1][0] # false negatives
-	precision = tp / (tp + fp)
-	recall = tp / (tp + fn)
-	f1_score = 2 * ( (precision * recall)/(precision + recall) )
-	
+	try:
+		# Evaluation metrics
+		tp = confusion_matrix[1][1] # true positives
+		fp = confusion_matrix[0][1] # false positives
+		fn = confusion_matrix[1][0] # false negatives
+		precision = tp / (tp + fp)
+		recall = tp / (tp + fn)
+		f1_score = 2 * ( (precision * recall)/(precision + recall) )
+	except KeyError:
+		precision = None
+		recall = None
+		f1_score = None
+
 	
 	return LWd_pred, confusion_matrix, precision, recall, f1_score
 
 
 
 def min_f1_score(threshold, *args):
-	''' Objective function for minimizing based on 1-f1_score of confusion matrix'''
+	''' Objective function for minimizing based on -f1_score of confusion matrix'''
 
 	Tair = args[0]
 	RH = args[1]
@@ -112,7 +118,7 @@ def min_f1_score(threshold, *args):
 
 	_, _, _, _, f1_score = lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, threshold)
 
-	return (1 - f1_score)
+	return -1*f1_score
 	
 	
 
@@ -130,7 +136,7 @@ def optimize_lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, iterations=1
 	for n in range(iterations):
 		# Generate a random boolean array to select approximately some % of the original data for testing
 		random_numbers = np.random.rand(len(Tair))
-		random_bools = random_numbers < 0.005 # adjust this to select more or 
+		random_bools = random_numbers < 0.001 # adjust this to select more or 
 
 		# Select this random subset from the input data
 		Tair_sample = Tair[random_bools]
@@ -139,11 +145,15 @@ def optimize_lw_cloud_detect(Tair, RH, LWd_obs, sun_flag_obs, elev, iterations=1
 		sun_flag_obs_sample = sun_flag_obs[random_bools]
 
 		# LWd_pred, confusion_matrix, precision, recall, f1_score = cloud_detect.lw_cloud_detect(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev, threshold)
-		res = minimize(
-					fun = min_f1_score,
-					x0=0,
-					args=(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev),
-					method='Nelder-Mead'
+		#res = minimize(
+		#			fun = min_f1_score,
+		#			x0=0,
+		#			args=(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev),
+		#			method='Nelder-Mead'
+		#)
+		res = minimize_scalar(
+					min_f1_score,
+					args=(Tair_sample, RH_sample, LWd_obs_sample, sun_flag_obs_sample, elev)
 		)
 	
 	
