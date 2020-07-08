@@ -20,9 +20,23 @@ Notebook for cleaning up and combining CUES Level 1 data (temperature and radiat
 
 ---
 
-### test-cloud-detect.ipynb
+### Notebooks for testing:
 
-Testing the lw_clr.py functions. Estimate when we have cloud-cover and add a cloud_flag to the CUES dataset.
+#### test-lw-clr.ipynb
+
+Testing the lw_clr.py functions.
+
+#### test-cloud-detect.ipynb
+
+Testing the cloud_detect.py functions, and brute-force parameter test to find optimal clear-sky index thresholds.
+
+![cloud_detect_threshold_options.png](https://github.com/spestana/goes-cues/blob/master/cloud_detect_threshold_options.png "cloud_detect_threshold_options")
+
+---
+
+### cloud-detect.ipynb
+
+Estimate when we have cloud-cover and add a cloud_flag to the CUES dataset.
 
 ---
 
