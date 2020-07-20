@@ -1,5 +1,5 @@
 """
-Calculate zonal statistics for ASTER imagery given a shapefile with a single geometry (polygon).
+Functions for working with ASTER TIR imagery.
 
 Steven Pestana, July 2020 (spestana@uw.edu)
 
@@ -30,7 +30,7 @@ def tir_rad2tb(rad, band):
     tb = k2[band-10] /  np.log((k1[band-10]/rad) + 1)
     return tb
 	
-def zonal_stats(aster_filepath, aster_band, shapefile_filepath):
+def zonal_stats(aster_filepath, aster_band, shapefile_filepath, return_masked_array=False):
 	'''Calculate zonal statistics for an ASTER TIR geotiff image within a single polygon from a shapefile.'''
 
 	with rio.open(aster_filepath) as src:
@@ -42,12 +42,16 @@ def zonal_stats(aster_filepath, aster_band, shapefile_filepath):
 		zone_shape = zone_shape.to_crs(src.crs)
 
 		# Mask the ASTER TIR image to the area of the shapefile
-		masked_aster_band_DN, mask_transform = mask(dataset=src, 
-                                           shapes=zone_shape.geometry,
-                                           crop=True,
-                                           all_touched=True,
-                                           filled=True)
+		try:
+			masked_aster_band_DN, mask_transform = mask(dataset=src, 
+											shapes=zone_shape.geometry,
+											crop=True,
+											all_touched=True,
+											filled=True)
 		# Note that we still have a "bands" axis (of size 1) even though there's only one band, we can remove it below
+		except ValueError as e: 
+			# ValueError when shape doesn't overlap raster
+			return
 		
 		# change data type to float64 so we can fill in DN=0 with NaN values
 		masked_aster_band_DN = masked_aster_band_DN.astype('float64')
@@ -66,10 +70,18 @@ def zonal_stats(aster_filepath, aster_band, shapefile_filepath):
 		values = masked_aster_band_tb.flatten() # flatten to 1-D
 		values = values[~np.isnan(values)] # remove NaN pixel values
 		
-		# Calculate zonal statistics for this area (mean, max, min, std:)
-		masked_aster_band_tb_mean = values.mean()
-		masked_aster_band_tb_max = values.max()
-		masked_aster_band_tb_min = values.min()
-		masked_aster_band_tb_std = values.std()
 		
-		return masked_aster_band_tb_mean, masked_aster_band_tb_max, masked_aster_band_tb_min, masked_aster_band_tb_std
+		# Calculate zonal statistics for this area (mean, max, min, std:)
+		try:
+			masked_aster_band_tb_mean = values.mean()
+			masked_aster_band_tb_max = values.max()
+			masked_aster_band_tb_min = values.min()
+			masked_aster_band_tb_std = values.std()
+		except ValueError as e:
+			# ValueError when the shapefile is empty I think
+			return
+		
+		if return_masked_array == True:
+			return masked_aster_band_tb_mean, masked_aster_band_tb_max, masked_aster_band_tb_min, masked_aster_band_tb_std, masked_aster_band_tb
+		else:
+			return masked_aster_band_tb_mean, masked_aster_band_tb_max, masked_aster_band_tb_min, masked_aster_band_tb_std
