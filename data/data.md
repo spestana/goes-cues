@@ -1,0 +1,1 @@
+Merged GOES brightness temperature and CUES station data (from merge-goes-cues.ipynb) stored in a pickled pandas dataframe: [goes-cues-2017-2020.pkl](https://drive.google.com/drive/folders/15Dhpha6WW1ImkMS9wI10irKzDnRdd4xC?usp=sharing)
