@@ -2,7 +2,7 @@
 
 Comparison of [GOES](https://www.goes-r.gov/) satellite observations against [CUES](https://snow.ucsb.edu/) station data
 
-![flowchart](https://github.com/spestana/goes-cues/blob/master/flowchart.png "goes-cues flowchart")
+![flowchart](images/flowchart.png "goes-cues flowchart")
 
 ---
 
@@ -57,13 +57,13 @@ Testing the lw_clr.py functions.
 
 Testing the cloud_detect.py functions, and brute-force parameter test to find optimal clear-sky index thresholds. Read in [RESULTS.pkl](https://github.com/spestana/goes-cues/blob/master/RESULTS.pkl) to get a pandas dataframe of the brute force parameter test results.
 
-![cloud_detect_threshold_options.png](https://github.com/spestana/goes-cues/blob/master/cloud_detect_threshold_options.png "cloud_detect_threshold_options")
+![cloud_detect_threshold_options.png](images/cloud_detect_threshold_options.png "cloud_detect_threshold_options")
 
 ### example-plot.ipynb
 
 Produces this plot:
 
-![example plot](https://github.com/spestana/goes-cues/blob/master/goes-vs-cues.jpg "example plot")
+![example plot](images/goes-vs-cues.jpg "example plot")
 
 ### zonal-statistics-aster.ipynb
 
