@@ -53,7 +53,7 @@ Testing the lw_clr.py functions.
 
 ### test-cloud-detect.ipynb
 
-Testing the cloud_detect.py functions, and brute-force parameter test to find optimal clear-sky index thresholds. Read in [RESULTS.pkl](https://github.com/spestana/goes-cues/blob/master/RESULTS.pkl) to get a pandas dataframe of the brute force parameter test results.
+Testing the cloud_detect.py functions, and brute-force parameter test to find optimal clear-sky index thresholds. Read in [RESULTS.pkl](/misc/RESULTS.pkl) to get a pandas dataframe of the brute force parameter test results.
 
 ![cloud_detect_threshold_options.png](/images/cloud_detect_threshold_options.png "cloud_detect_threshold_options")
 
