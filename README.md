@@ -2,8 +2,6 @@
 
 Comparison of [GOES](https://www.goes-r.gov/) satellite observations against [CUES](https://snow.ucsb.edu/) station data
 
-![flowchart](/images/flowchart.png "goes-cues flowchart")
-
 ---
 
 ## Functions/scripts:
@@ -69,6 +67,10 @@ Produces this plot:
 
 Example notebook to read in an AST_L1T geotiff, shapefile, and compute zonal statistics.
 
+![zonal_stats_example.png](/images/zonal_stats_example.png "zonal_stats_example")
+
 ---
+
+![flowchart](/images/flowchart.png "goes-cues flowchart")
 
 ---
