@@ -33,7 +33,7 @@ Estimate when we have cloud-cover and add a cloud_flag to the CUES dataset.
 
 ### merge-goes-cues.ipynb
 
-Merge the CUES dataset with GOES brightness temperature observations of the site. (Also resamples to 5-minute mean values)
+Merge the CUES dataset with GOES brightness temperature observations of the site. (Also resamples to 5-minute mean values) (See [data](/data/data.md) here.)
 
 ### goes-cues-2017-2020.ipynb
 
