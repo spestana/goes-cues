@@ -35,6 +35,11 @@ Estimate when we have cloud-cover and add a cloud_flag to the CUES dataset.
 
 Merge the CUES dataset with GOES brightness temperature observations of the site. (Also resamples to 5-minute mean values) (See [data](/data/data.md) here.)
 
+### goes-cues-compute-stats.ipynb
+
+Compute summary stats to compare GOES brightness temperature and CUES snow surface temperature over 1- and 6-hourly time intervals for all years of data.
+Only when snow is present - as determined by snow depth ($\geq$5 cm), and mean soil surface temperatures ($\leq$1 $\degree$ C).
+
 ### goes-cues-2017-2020.ipynb
 
 Analysis and plotting of GOES (single pixel) and CUES temperature timeseries.
