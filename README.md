@@ -38,7 +38,7 @@ Merge the CUES dataset with GOES brightness temperature observations of the site
 ### goes-cues-compute-stats.ipynb
 
 Compute summary stats to compare GOES brightness temperature and CUES snow surface temperature over 1- and 6-hourly time intervals for all years of data.
-Only when snow is present - as determined by snow depth (>= 5 cm), and mean soil surface temperatures (<= 1 $\degree$ C).
+Only when snow is present - as determined by snow depth (>= 5 cm), and mean soil surface temperatures (<= 1 C).
 
 ### goes-cues-2017-2020.ipynb
 
