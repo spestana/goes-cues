@@ -19,6 +19,10 @@ Detecting cloud cover using ground-based observations (similar to the clear-sky 
 Functions for working with ASTER TIR imagery(from the [AST_L1T product](https://lpdaac.usgs.gov/products/ast_l1tv003/)): converting DN to radiance, radiance to brightness temperature, and computing zonal statistics given a shapefile.
 Also take a look at [these AST_L1T utilities from LP DAAC](https://git.earthdata.nasa.gov/projects/LPDUR/repos/aster-l1t/browse).
 
+### resampled_stats.py
+
+Functions for computing statistics on [DataArrayResample](https://xarray.pydata.org/en/stable/generated/xarray.core.resample.DataArrayResample.html) objects.
+
 ---
 
 ## Data processing/analysis notebooks:
@@ -34,11 +38,6 @@ Estimate when we have cloud-cover and add a cloud_flag to the CUES dataset.
 ### merge-goes-cues.ipynb
 
 Merge the CUES dataset with GOES brightness temperature observations of the site. (Also resamples to 5-minute mean values) (See [data](/data/data.md) here.)
-
-### goes-cues-compute-stats.ipynb
-
-Compute summary stats to compare GOES brightness temperature and CUES snow surface temperature over 1- and 6-hourly time intervals for all years of data.
-Only when snow is present - as determined by snow depth (>= 5 cm), and mean soil surface temperatures (<= 1 C).
 
 ### goes-cues-2017-2020.ipynb
 
@@ -74,8 +73,11 @@ Example notebook to read in an AST_L1T geotiff, shapefile, and compute zonal sta
 
 ![zonal_stats_example.png](/images/zonal_stats_example.png "zonal_stats_example")
 
+### resampled-stats-example.ipynb
+
+Testing the [resampled_stats.py](./resampled_stats.py) functions, to compute summary statistics on [DataArrayResample](https://xarray.pydata.org/en/stable/generated/xarray.core.resample.DataArrayResample.html) objects.
+
 ---
 
-![flowchart](/images/flowchart.png "goes-cues flowchart")
 
 ---
