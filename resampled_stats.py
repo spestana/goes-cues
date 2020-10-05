@@ -1,5 +1,8 @@
 """
 Functions for computing statistics on DataArrayResample objects.
+
+Steven Pestana, Sept 2020 (spestana@uw.edu)
+
 """
 
 import numpy as np
