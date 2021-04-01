@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import scipy.stats as stats
 import xarray as xr
+import matplotlib.pyplot as plt
 
 def compute_modes(resampled, n=0):
     
@@ -61,3 +62,51 @@ def resampled_stats(resampled, n=0, q=(.25,.75)):
     df = pd.DataFrame(data=d, index=resampled_modes.index)
     
     return df
+
+
+def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=400, nbins=100):
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(14,4), 
+                           tight_layout=True, sharey=True,
+                           gridspec_kw={'width_ratios': [1, 3]})
+    
+    ### Original Dataframe, Histogram ###
+    original_df.plot.hist(ax=ax[0],
+                          bins=nbins, 
+                          orientation='horizontal',
+                          color = '#000000',
+                          ec='none',
+                          lw=1)
+    ax[0].axhline(0,color='lightgrey',linestyle='-')
+    ax[0].set_title('Difference Histogram')
+    ax[0].set_xlabel('Number of Observations\nTotal: {}'.format(original_df.count()))
+    ax[0].set_xlim((xmin,xmax))
+    
+    ### Resampled Dataframe, Timeseries "Boxplots" ###
+    # mean marker
+    resampled_df.means.plot(linestyle='none',marker='o',color='k', label='Mean', ax=ax[1])
+    # median marker
+    resampled_df.medians.plot(linestyle='none',marker='_',color='k', label='Median', ax=ax[1])
+    # mode marker
+    resampled_df.modes.plot(linestyle='none',marker='o',markerfacecolor='w',markeredgecolor='k', label='Mode', ax=ax[1])
+    
+    # lower and upper quartile error bars
+    ax[1].errorbar(x=resampled_df.index, 
+                y=resampled_df.means,
+                yerr=np.array([np.abs(resampled_df.qLower-resampled_df.means), 
+                               np.abs(resampled_df.qUpper-resampled_df.means)]),
+                fmt='none',
+                linewidth=1,
+                color='k',
+                alpha=0.4,
+                capsize=None,
+                label='IQR')
+    
+    ax[1].axhline(0,linestyle='-',color='lightgrey',linewidth=1)
+    plt.legend()
+    
+    # Format shared y-axis
+    ax[0].set_ylim(ymin,ymax);
+    ax[0].set_ylabel('GOES $T_{B}$ - CUES $T_{SS}$ [$\Delta\degree C$]')
+    
+    return fig, ax
