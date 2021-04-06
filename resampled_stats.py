@@ -131,10 +131,10 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
                           orientation='horizontal',
                           color = '#000000',
                           ec='none',
-                          lw=1)
+                          lw=1, legend=False)
     ax[0].axhline(0,color='lightgrey',linestyle='-')
     ax[0].set_title('Difference Histogram')
-    ax[0].set_xlabel('Number of Observations\nTotal: {}'.format(original_df.count()))
+    ax[0].set_xlabel('Number of Observations\nTotal: {}'.format(int(original_df.count())))
     ax[0].set_xlim((xmin,xmax))
     
     ### Resampled Dataframe, Timeseries "Boxplots" ###
