@@ -48,6 +48,9 @@ def summary_stats(_a, _b):
     # populate dict with summary stats
     summary_stats_dict = {
         #'diff' : diff ,
+        'min_diff' : np.nanmin( diff ),
+        'max_diff' : np.nanmax( diff ),
+        'range_diff' : np.nanmax( diff ) - np.nanmin( diff ),
         'n' : len(diff) ,
         'mean_diff' : np.nanmean( diff ),
         'median_diff' : np.nanmedian( diff ),
@@ -78,44 +81,70 @@ def compute_modes(resampled, n=0):
     resampled_modes = np.array(resampled_modes).reshape(len(resampled))
     
     # Get the count for each mode
-    resampled_counts = [x.count for x in resampled_ModeResults]
+    #resampled_counts = [x.count for x in resampled_ModeResults]
     # Reshape result into 1D array
-    resampled_counts = np.array(resampled_counts).reshape(len(resampled))
+    #resampled_counts = np.array(resampled_counts).reshape(len(resampled))
     
     # Get the group (datetime) for each mode
-    resampled_groups = np.array( list(resampled.groups.keys()) )
+    #resampled_groups = np.array( list(resampled.groups.keys()) )
     
     # Create pandas dataframe
-    d = {'modes': resampled_modes, 'counts': resampled_counts}
-    df = pd.DataFrame(data=d, index=resampled_groups)
+    #d = {'modes': resampled_modes, 'counts': resampled_counts}
+    #df = pd.DataFrame(data=d, index=resampled_groups)
     
-    return df
+    return resampled_modes
+
+def reconcile_groups_dict(d, my_groups, all_groups):
+    # make a new dictionary
+    new_d = {}
+    # for each key in the dictionary
+    for key_name in d:
+        # make a temporary empty list we'll populate with values that correspond to our original groups
+        cleaned_list = []
+        # now for each group (and it's index) in "all_groups" (which have too many groups but include the "my_groups" I want to keep)
+        for i, group in enumerate(all_groups):
+            # if this group from "all_groups" is one of "my_groups"
+            if group in my_groups:
+                # append the value from this key_name to the temporary list
+                cleaned_list.append(d[key_name][i])
+        # at the end of the items in this key, add the cleaned_list to the new dictionary with the same key
+        new_d[key_name] = cleaned_list
+    return new_d
 
 def resampled_stats(resampled, n=0, q=(.25,.75)):
     
     '''Given a resampled xarray object (xarray.core.resample.DataArrayResample),
     return a pandas dataframe with the mean, median, modes, counts, and groups (datetime)'''
     
-    # Compute modes
-    resampled_modes = compute_modes(resampled, n)
-    
+    # get the groups that we are resampling or grouping by
+    my_groups = list(resampled.groups.keys())
+        
     # Compute and add mean, medians, modes, counts to a dataframe
     d = {'means': resampled.mean().values, 
          'medians': resampled.median().values, 
-         'modes': resampled_modes.modes.values,
-         'counts': resampled_modes.counts.values,
+         'counts': resampled.count().values,
          'maxs': resampled.max().values,
          'mins': resampled.min().values,
          'ranges': resampled.max().values - resampled.min().values,
          'stds': resampled.std().values,
          'qUpper': resampled.quantile(q[1]).values,
          'qLower': resampled.quantile(q[0]).values,}
-    # remove any nans from the dictionary
-    cleaned_d = clean_nans_from_dict(d)
-
-    # Create a dataframe from the cleaned-up dictionary
-    df = pd.DataFrame(data=cleaned_d, index=resampled_modes.index)
     
+    # if we are using a "DataArrayResample" obect, we may need to fix the groups
+    if type(resampled) == xr.core.resample.DataArrayResample:
+        # fix the groups in the dictionary
+        all_groups = list(resampled.mean().time.values)
+        fixed_d = reconcile_groups_dict(d, my_groups, all_groups)
+    # otherwise, we're working with an "xr.core.resample.DataArrayGroupBy" object and this shouldn't be an issue
+    else:
+        fixed_d = d
+    
+    # Create a dataframe from the cleaned-up dictionary
+    df = pd.DataFrame(data=fixed_d, index=my_groups)
+    
+    # Compute modes and add to dataframe
+    df['modes'] = compute_modes(resampled, n)
+        
     return df
 
 
@@ -139,7 +168,7 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
     
     ### Resampled Dataframe, Timeseries "Boxplots" ###
     # mean marker
-    resampled_df.means.plot(linestyle='none',marker='_',color='k', label='Mean', ax=ax[1])
+    resampled_df.means.plot(linestyle='none',marker='+',color='k', label='Mean', ax=ax[1])
     # median marker
     resampled_df.medians.plot(linestyle='none',marker='o',color='k', label='Median', ax=ax[1])
     # mode marker
