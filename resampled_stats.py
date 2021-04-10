@@ -168,11 +168,11 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
     
     ### Resampled Dataframe, Timeseries "Boxplots" ###
     # mean marker
-    resampled_df.means.plot(linestyle='none',marker='+',color='k', label='Mean', ax=ax[1])
+    resampled_df.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='Mean', ax=ax[1])
     # median marker
-    resampled_df.medians.plot(linestyle='none',marker='o',color='k', label='Median', ax=ax[1])
+    resampled_df.medians.plot(linestyle='none', marker='^', markerfacecolor='w', markeredgecolor='k', zorder=98, label='Median', ax=ax[1])
     # mode marker
-    resampled_df.modes.plot(linestyle='none',marker='o',markerfacecolor='w',markeredgecolor='k', label='Mode', ax=ax[1])
+    resampled_df.modes.plot(linestyle='none', marker='+', color='k', label='Mode', zorder=97, ax=ax[1])
     
     # lower and upper quartile error bars
     ax[1].errorbar(x=resampled_df.index, 
