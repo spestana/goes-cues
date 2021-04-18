@@ -154,7 +154,7 @@ def mapZonalStats(zones, zonalstats, stat_name):
         
         
         
-def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry, zonal_count_threshold=None, output_filepath=None):
+def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry, zonal_count_threshold=None, goes_tb_filepath=None, output_filepath=None):
     '''Given an ASTER thermal infrared radiance GeoTiff image, a GOES ABI thermal infrared radiance GeoTiff image,
        and a GOES ABI GeoTiff image defining pixel footprint "zones", compute zonal statistics for each GOES pixel
        footprint. Compute the difference between the GOES ABI radiance and ASTER zonal mean radiance.
@@ -170,11 +170,18 @@ def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, go
     
     ### Use reproject_match to align the GOES radiance and GOES zones rasters to the ASTER image, clip to the geometry defined above, and set zone values to integers. ###
     # Reproject match goes rad raster to aster, clip to geometry,  and squeeze out extra dim
-    goes_rad_repr = goes_rad.rio.reproject_match(aster_src).rio.clip(bounding_geometry).squeeze().rename('goes')
+    goes_rad_repr = goes_rad.rio.reproject_match(aster_src).rio.clip(bounding_geometry).squeeze().rename('goes_rad')
     # convert GOES radiance (mW m^-2 sr^-1 1/cm^-1) to match MODIS and ASTER (W m^-2 sr^-1 um^-1)
     goes_rad_repr = (goes_rad_repr / 1000) * (61.5342/0.7711)
     # Reproject match goes zones raster to aster, clip to geometry, set datatype to integer, and squeeze out extra dim
-    goes_zones_repr = goes_zones.rio.reproject_match(aster_src).rio.clip(bounding_geometry).astype('int').squeeze().rename('zones')
+    goes_zones_repr = goes_zones.rio.reproject_match(aster_src).rio.clip(bounding_geometry).astype('int').squeeze().rename('goes_zones')
+    
+    ### If we are given a GOES Brightness Temperature geotiff, open and include it in the final dataset output
+    if goes_tb_filepath != None:
+        # Use rioxarray to open a GeoTIFF of GOES-16 ABI Brightness Temperature that has been orthorectified for our study area
+        goes_tb = xr.open_rasterio(goes_tb_filepath)
+        # Reproject match goes tb raster to aster, clip to geometry,  and squeeze out extra dim
+        goes_tb_repr = goes_tb.rio.reproject_match(aster_src).rio.clip(bounding_geometry).squeeze().rename('goes_tb')
     
     ### Clean up the ASTER image by replacing nodata values with NaN, removing an extra dimension, converting the digital number values to radiance values, and finally clipping to the geometry defined above. ###
     # Replace the nodatavals with NaN, squeeze out the band dim we don't need
@@ -185,7 +192,7 @@ def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, go
     # set crs back
     aster_rad.rio.set_crs(aster_src.crs, inplace=True)
     # clip to geometry
-    aster_rad_clipped = aster_rad.rio.clip(bounding_geometry).rename('aster')
+    aster_rad_clipped = aster_rad.rio.clip(bounding_geometry).rename('aster_rad')
     
     ### Compute zonal statistics and format results ###
     # Compute zonal statistics from the ASTER image, using the GOES zone labels:
@@ -197,22 +204,53 @@ def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, go
     
     ### Map the results from xrs.zonal.stats() back into the original zones grid ###
     # Map each zonal stat back into the original zones grid
-    zonal_means = mapZonalStats(goes_zones_repr, zonalstats, 'mean')
-    zonal_max = mapZonalStats(goes_zones_repr, zonalstats, 'max')
-    zonal_min = mapZonalStats(goes_zones_repr, zonalstats, 'min')
-    zonal_std = mapZonalStats(goes_zones_repr, zonalstats, 'std')
-    zonal_var = mapZonalStats(goes_zones_repr, zonalstats, 'var')
+    zonal_means = mapZonalStats(goes_zones_repr, zonalstats, 'mean').rename('mean_rad')
+    zonal_max = mapZonalStats(goes_zones_repr, zonalstats, 'max').rename('max_rad')
+    zonal_min = mapZonalStats(goes_zones_repr, zonalstats, 'min').rename('min_rad')
+    zonal_std = mapZonalStats(goes_zones_repr, zonalstats, 'std').rename('std_rad')
+    zonal_var = mapZonalStats(goes_zones_repr, zonalstats, 'var').rename('var_rad')
     zonal_count = mapZonalStats(goes_zones_repr, zonalstats, 'count')
+        
+    ### Compute brightness temperatures for the original ASTER image, and each zonal statistic from Radiance
+    rad2tb_stats = []
+    for this_stat_da in [aster_rad_clipped, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var]:
+        # ASTER Radiance to Brightness Temperature
+        aster_this_stat_da_tb_K =  tir_rad2tb(this_stat_da, aster_band)
+        aster_this_stat_da_tb_K.rio.set_crs(aster_src.crs, inplace=True)
+        aster_this_stat_da_tb_K = aster_this_stat_da_tb_K.rename('{}2tbK'.format(this_stat_da.name))
+        rad2tb_stats.append(aster_this_stat_da_tb_K)
+        # convert brightness temperature in K to C
+        #aster_this_stat_da_tb_C = aster_this_stat_da_tb_K.values - 273.15
+        #aster_this_stat_da_tb_C = xr.DataArray(aster_this_stat_da_tb_C, name='{}2tbC'.format(this_stat_da.name))
+        #rad2tb_stats.append(aster_this_stat_da_tb_C)
     
     ### Compute the difference between GOES Radiance and the ASTER zonal mean radiance ###
     # Compute the difference between GOES Radiance and the ASTER zonal mean radiance
-    mean_diff = goes_rad_repr.values - zonal_means.values
+    mean_diff_rad = goes_rad_repr.values - zonal_means.values
     # Create a data array for the mean difference values
-    mean_diff_da = xr.DataArray(mean_diff, name='mean_diff', dims=["y", "x"])
+    mean_diff_rad_da = xr.DataArray(mean_diff_rad, name='mean_diff_rad', dims=["y", "x"])
     
     ### Merge all zonal stats back with the original ASTER data to create a single dataset ###
     # Merge all the zonal statistics data arrays and the mean difference data array
-    ds = xr.merge([aster_rad_clipped, goes_rad_repr, goes_zones_repr, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var, zonal_count, mean_diff_da])
+    if goes_tb_filepath == None:
+        # without the GOES Brightness Temperature data array
+        ds = xr.merge([aster_rad_clipped, goes_rad_repr, goes_zones_repr, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var, zonal_count, mean_diff_rad_da] + rad2tb_stats)
+    else:
+        # With the GOES Brightness Temperature data array
+        ds = xr.merge([aster_rad_clipped, goes_rad_repr, goes_tb_repr, goes_zones_repr, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var, zonal_count, mean_diff_rad_da] + rad2tb_stats)
+    
+    
+    
+    if goes_tb_filepath != None:
+        ### If we have a GOES Brightness Temperature data array,
+        # Compute the difference between GOES Brightness Temperature and the ASTER zonal mean brightness temperature
+        mean_diff_tb = goes_tb_repr.values - ds.mean_rad2tbK.values
+        # Create a data array for the mean difference values
+        mean_diff_tb_da = xr.DataArray(mean_diff_tb, name='mean_diff_tb', dims=["y", "x"])
+        # Add it to our dataset
+        ds['mean_diff_tb'] = mean_diff_tb_da
+    
+    
     # Clip this dataset to the ASTER image extent
     ds = ds.where(~np.isnan(aster_rad_clipped))
     # Remove data where we have overlap between a GOES pixel footprint "zone" and the edge of the ASTER image
