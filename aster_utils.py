@@ -12,6 +12,9 @@ import geopandas as gpd
 import rasterio as rio
 import rasterio.plot as rioplt
 from rasterio.mask import mask
+import xarray as xr
+import xrspatial as xrs
+import rioxarray
 
 
 def tir_dn2rad(DN, band):
@@ -119,3 +122,109 @@ def zonal_stats(aster_filepath, aster_band, shapefile_filepath, return_masked_ar
 			return masked_aster_band_tb_mean, masked_aster_band_tb_max, masked_aster_band_tb_min, masked_aster_band_tb_std, masked_aster_band_tb
 		else:
 			return masked_aster_band_tb_mean, masked_aster_band_tb_max, masked_aster_band_tb_min, masked_aster_band_tb_std
+
+
+        
+def mapZonalStats(zones, zonalstats, stat_name):
+    ''' Function for mapping the zonal statistics back to the original grid to get a 2D map of the chosen statistic'''
+    # create an empty array for this summary stat
+    zonal_stat = np.zeros_like(zones.values, dtype=np.float64)
+
+    # for each zone
+    for zone_n in zonalstats.dim_0.values:
+        # get the summary stat for that zone, 
+        # and assign it to the correct locations in the zonal_stat array
+        try:
+            zonal_stat[zones.values==zone_n] = zonalstats['{}'.format(stat_name)].sel(dim_0=zone_n).values
+        except: #MaskError: Cannot convert masked element to a Python int.
+            zonal_stat[zones.values==zone_n] = -9999
+
+    # convert this to an xarray data array with the proper name
+    zonal_stat_da = xr.DataArray(zonal_stat, 
+                                 dims=["y", "x"],
+                                 coords=dict(
+                                             x=(["x"], zones.x),
+                                             y=(["y"], zones.y),
+                                             ),
+                                 name='zonal_{}'.format(stat_name))
+    # remove nodata values
+    zonal_stat_da = zonal_stat_da.where(zonal_stat_da!=-9999, np.nan)
+
+    return zonal_stat_da        
+        
+        
+        
+def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry, zonal_count_threshold=None, output_filepath=None):
+    '''Given an ASTER thermal infrared radiance GeoTiff image, a GOES ABI thermal infrared radiance GeoTiff image,
+       and a GOES ABI GeoTiff image defining pixel footprint "zones", compute zonal statistics for each GOES pixel
+       footprint. Compute the difference between the GOES ABI radiance and ASTER zonal mean radiance.
+       Return a dataset, or save dataset to a netcdf file, with the three input dataarrays plus zonal statistic data arrays.'''
+    
+    ### Open and clean-up input datasets ###
+    # Use rioxarray to open a GeoTIFF of GOES-16 ABI Radiance that has been orthorectified for our study area
+    goes_rad = xr.open_rasterio(goes_rad_filepath)
+    # Open its associated GOES "zone_labels" GeoTIFF raster that was generated at the same time the image was orthorectified
+    goes_zones = xr.open_rasterio(goes_zones_filepath)
+    # Open the coincident ASTER thermal infrared radiance GeoTIFF image we want to compare with
+    aster_src = xr.open_rasterio(aster_rad_filepath)
+    
+    ### Use reproject_match to align the GOES radiance and GOES zones rasters to the ASTER image, clip to the geometry defined above, and set zone values to integers. ###
+    # Reproject match goes rad raster to aster, clip to geometry,  and squeeze out extra dim
+    goes_rad_repr = goes_rad.rio.reproject_match(aster_src).rio.clip(bounding_geometry).squeeze().rename('goes')
+    # convert GOES radiance (mW m^-2 sr^-1 1/cm^-1) to match MODIS and ASTER (W m^-2 sr^-1 um^-1)
+    goes_rad_repr = (goes_rad_repr / 1000) * (61.5342/0.7711)
+    # Reproject match goes zones raster to aster, clip to geometry, set datatype to integer, and squeeze out extra dim
+    goes_zones_repr = goes_zones.rio.reproject_match(aster_src).rio.clip(bounding_geometry).astype('int').squeeze().rename('zones')
+    
+    ### Clean up the ASTER image by replacing nodata values with NaN, removing an extra dimension, converting the digital number values to radiance values, and finally clipping to the geometry defined above. ###
+    # Replace the nodatavals with NaN, squeeze out the band dim we don't need
+    aster_src = aster_src.where(aster_src!=aster_src.nodatavals, np.nan).squeeze()
+    # Convert ASTER DN to Radiance
+    aster_band = 14
+    aster_rad = tir_dn2rad(aster_src, aster_band)
+    # set crs back
+    aster_rad.rio.set_crs(aster_src.crs, inplace=True)
+    # clip to geometry
+    aster_rad_clipped = aster_rad.rio.clip(bounding_geometry).rename('aster')
+    
+    ### Compute zonal statistics and format results ###
+    # Compute zonal statistics from the ASTER image, using the GOES zone labels:
+    zonalstats = xrs.zonal.stats(goes_zones_repr, 
+                             aster_rad_clipped, 
+                             stat_funcs=['mean', 'max', 'min', 'std', 'var', 'count'])
+    # Convert zonal statistics dataframe to xarray dataset
+    zonalstats = xr.Dataset(zonalstats)
+    
+    ### Map the results from xrs.zonal.stats() back into the original zones grid ###
+    # Map each zonal stat back into the original zones grid
+    zonal_means = mapZonalStats(goes_zones_repr, zonalstats, 'mean')
+    zonal_max = mapZonalStats(goes_zones_repr, zonalstats, 'max')
+    zonal_min = mapZonalStats(goes_zones_repr, zonalstats, 'min')
+    zonal_std = mapZonalStats(goes_zones_repr, zonalstats, 'std')
+    zonal_var = mapZonalStats(goes_zones_repr, zonalstats, 'var')
+    zonal_count = mapZonalStats(goes_zones_repr, zonalstats, 'count')
+    
+    ### Compute the difference between GOES Radiance and the ASTER zonal mean radiance ###
+    # Compute the difference between GOES Radiance and the ASTER zonal mean radiance
+    mean_diff = goes_rad_repr.values - zonal_means.values
+    # Create a data array for the mean difference values
+    mean_diff_da = xr.DataArray(mean_diff, name='mean_diff', dims=["y", "x"])
+    
+    ### Merge all zonal stats back with the original ASTER data to create a single dataset ###
+    # Merge all the zonal statistics data arrays and the mean difference data array
+    ds = xr.merge([aster_rad_clipped, goes_rad_repr, goes_zones_repr, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var, zonal_count, mean_diff_da])
+    # Clip this dataset to the ASTER image extent
+    ds = ds.where(~np.isnan(aster_rad_clipped))
+    # Remove data where we have overlap between a GOES pixel footprint "zone" and the edge of the ASTER image
+    if zonal_count_threshold != None:
+        # Use the "zonal_count" (the number of ASTER pixels in each GOES pixel footprint) to determine this
+        # Example: zonal_count_threshold = 800 90m ASTER pixels is 800x90x90 square meters, or approximately 6.48 square kilometers or,
+        # about 2.5x2.5 km, about the size of a full GOES-16 ABI pixel here
+        # NOTE: The number of ASTER pixels per GOES pixel footprint is not constant, so there are some "edge pixels" still included here
+        ds = ds.where(ds.zonal_count > zonal_count_threshold)
+    
+    # If an output_filepath was specified, save the resulting dataset to a netcdf file
+    if output_filepath != None:
+        ds.to_netcdf(output_filepath)
+    
+    return ds
