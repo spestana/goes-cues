@@ -266,3 +266,137 @@ def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, go
         ds.to_netcdf(output_filepath)
     
     return ds
+
+def upscale_aster_modis_rad_zonal_stats(aster_rad_filepath, modis_rad_filepath, bounding_geometry, modis_band_index=10, zonal_count_quantile_threshold=0.05, output_filepath=None):
+    '''Given an ASTER thermal infrared radiance GeoTiff image, and a MODIS MxD021KM Radiance GeoTiff image,
+       compute zonal statistics for each MODIS pixel footprint. Compute the difference between MODIS radiance
+       and ASTER zonal mean radiance.
+       Return a dataset, or save dataset to a netcdf file, with the input dataarrays plus all the zonal
+       statistic data arrays.'''
+    
+    ### Open and clean-up input datasets ###
+    
+    # Open the ASTER thermal infrared radiance GeoTIFF image we want to compare MODIS with
+    aster_src = xr.open_rasterio(aster_rad_filepath)
+    
+    # Clean up the ASTER image by replacing nodata values with NaN, removing an extra dimension, converting the digital number values to radiance values, and finally clipping to the geometry defined above.
+    # Replace the nodatavals with NaN, squeeze out the band dim we don't need
+    aster_src = aster_src.where(aster_src!=aster_src.nodatavals, np.nan).squeeze()
+    # Convert ASTER DN to Radiance
+    aster_band = 14
+    aster_rad = aster_utils.tir_dn2rad(aster_src, aster_band)
+    # set crs back
+    aster_rad.rio.set_crs(aster_src.crs, inplace=True)
+    # clip to geometry
+    aster_rad_clipped = aster_rad.rio.clip(bounding_geometry).rename('aster_rad')
+    
+    # Use rioxarray to open the coincident GeoTIFF of MODIS Radiance
+    modis_ds = xr.open_rasterio(modis_rad_filepath)
+    
+    # Use reproject_match to align the MODIS radiance & zones raster to the ASTER image, clip to the geometry defined above.
+    # convert from DN to Radiance and Brightness Temperature
+    modis_rad_tb = modis_utils.emissive_convert_dn(modis_ds)
+    # Select a single band from the MODIS dataset
+    # Example, for ~11 micron band, make sure to use MODIS band 31 (here this is index 10)
+    # To see a list of band numbers: use modis_ds_repr_match.band_names.split(',')
+    modis_rad_tb_single_band = modis_rad_tb.isel(band=modis_band_index)
+    # Create "zone_labels" by numbering each MODIS pixel
+    n_rows, n_cols = modis_rad_tb_single_band.radiance.shape
+    modis_rad_tb_single_band['modis_zones'] = (('y', 'x'), np.reshape(np.arange(n_rows*n_cols), (n_rows, n_cols)))
+    # Change datatype to float, this is requried for reproject match apparently (?) change back to int later
+    modis_rad_tb_single_band['modis_zones'] = modis_rad_tb_single_band.modis_zones.astype('float32')
+    # Add CRS info to this new "modis_zones" data array by copying over attributes from another data array
+    zones_attrs = modis_rad_tb_single_band.radiance.attrs.copy()
+    # edit long name attribute for modis zones data array
+    zones_attrs['long_name'] = 'modis_zone_labels'
+    # Add the attributes
+    modis_rad_tb_single_band.modis_zones.attrs = zones_attrs
+    ## use Reproject_Match to reproject the GOES geotiff into the same CRS as the ASTER geotiff
+    modis_rad_tb_single_band_repr_match = modis_rad_tb_single_band.rio.reproject_match(aster_src)
+    # clip out anything that is nan in the ASTER image
+    modis_rad_tb_single_band_repr_match = modis_rad_tb_single_band_repr_match.where(np.isnan(aster_src.values) == False)
+    ## set crs
+    #modis_ds_repr_match.rio.set_crs(aster_src.crs, inplace=True)
+    # clip to geometry
+    modis_rad_tb_single_band_repr_match = modis_rad_tb_single_band_repr_match.rio.clip(bounding_geometry)
+    # remove nodata value
+    modis_repr = modis_rad_tb_single_band_repr_match.where(modis_rad_tb_single_band_repr_match.tb_c != modis_rad_tb_single_band_repr_match.tb_c._FillValue)
+    # scale the modis zones by the minimum zone value now that we've clipped to a smaller area and have much fewer zones
+    # switch back to int64 datatype
+    modis_repr['modis_zones'] = (modis_repr.modis_zones - modis_repr.modis_zones.min()).astype('int')
+    # Where we had NaN values, these overflowed to -9223372036854775808 when we turned them into ints,
+    # set these values to a nodata value of -9999 which we can ignore later
+    modis_repr['modis_zones'] = modis_repr.modis_zones.where(modis_repr.modis_zones != -9223372036854775808, -9999)
+    # drop extra coords
+    modis_repr = modis_repr.drop(['band','spatial_ref'])
+    
+    ### Compute zonal statistics and format results ###
+    # Compute zonal statistics from the ASTER image, using the MODIS zone labels:
+    zonalstats = xrs.zonal.stats(modis_repr.modis_zones, 
+                                 aster_rad_clipped, 
+                                 stat_funcs=['mean', 'max', 'min', 'std', 'var', 'count'])
+    # Convert zonal statistics dataframe to xarray dataset
+    zonalstats = xr.Dataset(zonalstats)
+    
+    ### Map the results from xrs.zonal.stats() back into the original zones grid ###
+    zonal_means = mapZonalStats(modis_repr.modis_zones, zonalstats, 'mean').rename('mean_rad')
+    zonal_max = mapZonalStats(modis_repr.modis_zones, zonalstats, 'max').rename('max_rad')
+    zonal_min = mapZonalStats(modis_repr.modis_zones, zonalstats, 'min').rename('min_rad')
+    zonal_std = mapZonalStats(modis_repr.modis_zones, zonalstats, 'std').rename('std_rad')
+    zonal_var = mapZonalStats(modis_repr.modis_zones, zonalstats, 'var').rename('var_rad')
+    zonal_count = mapZonalStats(modis_repr.modis_zones, zonalstats, 'count')
+    
+    ### Compute brightness temperatures for the original ASTER image, and each zonal statistic from Radiance
+    rad2tb_stats = []
+    for this_stat_da in [aster_rad_clipped, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var]:
+        # ASTER Radiance to Brightness Temperature
+        aster_this_stat_da_tb_K =  aster_utils.tir_rad2tb(this_stat_da, aster_band)
+        aster_this_stat_da_tb_K.rio.set_crs(aster_src.crs, inplace=True)
+        aster_this_stat_da_tb_K = aster_this_stat_da_tb_K.rename('{}2tbK'.format(this_stat_da.name))
+        rad2tb_stats.append(aster_this_stat_da_tb_K)
+        # convert brightness temperature in K to C
+        #aster_this_stat_da_tb_C = aster_this_stat_da_tb_K.values - 273.15
+        #aster_this_stat_da_tb_C = xr.DataArray(aster_this_stat_da_tb_C, name='{}2tbC'.format(this_stat_da.name))
+        #rad2tb_stats.append(aster_this_stat_da_tb_C)
+
+    ### Merge all zonal stats back with the original ASTER data to create a single dataset ###
+    # Merge all the zonal statistics data arrays and the mean difference data array
+    ds = xr.merge([aster_rad_clipped, modis_repr, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var, zonal_count] + rad2tb_stats)
+    # Clip this dataset to the ASTER image extent
+    ds = ds.where(~np.isnan(aster_rad_clipped))
+    
+    ### Compute the difference between MODIS and ASTER zonal mean Radiance, and Brightness Temperature ###
+    # Compute the difference between MODIS Radiance and the ASTER zonal mean radiance
+    mean_diff_rad = modis_repr.radiance.values - ds.mean_rad.values
+    # Create a data array for the mean difference values
+    mean_diff_rad_da = xr.DataArray(mean_diff_rad, name='mean_diff_rad', dims=["y", "x"])
+    
+    # Compute the difference between MODIS brightness temperature and the ASTER zonal mean brightness temperature
+    mean_diff_tb = modis_repr.tb.values - ds.mean_rad2tbK.values
+    # Create a data array for the mean difference values
+    mean_diff_tb_da = xr.DataArray(mean_diff_tb, name='mean_diff_tb', dims=["y", "x"])
+    
+    # Add both of these to our dataset
+    ds['mean_diff_rad'] = mean_diff_rad_da
+    ds['mean_diff_tb'] = mean_diff_tb_da
+    
+    ### Remove data where we have overlap between a MODIS pixel footprint "zone" and the edge of the ASTER image ###
+    # Remove data where we have overlap between a MODIS pixel footprint "zone" and the edge of the ASTER image
+    # Use the "zonal_count" (the number of ASTER pixels in each MODIS pixel footprint) to determine this
+    # Example: ~123 90m ASTER pixels is 123x90x90 square meters, or approximately 1 square kilometer or,
+    # about 1x1 km, about the size of a full MODIS pixel here
+    # NOTE: The actual size of MODIS pixels varies, starting at 1km at nadir and increasing towards the edge of the image
+    # To remove edge pixels, we can remove pixels in containing less than the lower 5%th quantile of ASTER subpixels
+    #ds.zonal_count.plot.hist(bins=100); # plot to show a histogram
+    #plt.axvline(ds.zonal_count.quantile(zonal_count_quantile_threshold),c='r'); # plot to show the 5%th quantile cutoff
+    #print('Removing MODIS pixels containing fewer than {} ASTER pixels'.format(ds.zonal_count.quantile(zonal_count_quantile_threshold).values))
+    ds = ds.where(ds.zonal_count > ds.zonal_count.quantile(zonal_count_quantile_threshold))
+    
+    # rename some of the MODIS data arrays for clarity
+    ds = ds.rename({'dn':'modis_dn', 'radiance': 'modis_rad', 'tb' : 'modis_tb', 'tb_c': 'modis_tbC'})
+    
+    # If an output_filepath was specified, save the resulting dataset to a netcdf file
+    if output_filepath != None:
+        ds.to_netcdf(output_filepath)
+    
+    return ds
