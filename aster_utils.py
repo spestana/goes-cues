@@ -16,6 +16,8 @@ import xarray as xr
 import xrspatial as xrs
 import rioxarray
 
+import modis_utils
+
 
 def tir_dn2rad(DN, band):
     '''Convert AST_L1T Digital Number values to At-Sensor Radiance for the TIR bands (bands 10-14).'''
@@ -284,7 +286,7 @@ def upscale_aster_modis_rad_zonal_stats(aster_rad_filepath, modis_rad_filepath, 
     aster_src = aster_src.where(aster_src!=aster_src.nodatavals, np.nan).squeeze()
     # Convert ASTER DN to Radiance
     aster_band = 14
-    aster_rad = aster_utils.tir_dn2rad(aster_src, aster_band)
+    aster_rad = tir_dn2rad(aster_src, aster_band)
     # set crs back
     aster_rad.rio.set_crs(aster_src.crs, inplace=True)
     # clip to geometry
@@ -350,7 +352,7 @@ def upscale_aster_modis_rad_zonal_stats(aster_rad_filepath, modis_rad_filepath, 
     rad2tb_stats = []
     for this_stat_da in [aster_rad_clipped, zonal_means, zonal_max, zonal_min, zonal_std, zonal_var]:
         # ASTER Radiance to Brightness Temperature
-        aster_this_stat_da_tb_K =  aster_utils.tir_rad2tb(this_stat_da, aster_band)
+        aster_this_stat_da_tb_K = tir_rad2tb(this_stat_da, aster_band)
         aster_this_stat_da_tb_K.rio.set_crs(aster_src.crs, inplace=True)
         aster_this_stat_da_tb_K = aster_this_stat_da_tb_K.rename('{}2tbK'.format(this_stat_da.name))
         rad2tb_stats.append(aster_this_stat_da_tb_K)
