@@ -156,7 +156,7 @@ def mapZonalStats(zones, zonalstats, stat_name):
         
         
         
-def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry=None, zonal_count_threshold=None, goes_tb_filepath=None, output_filepath=None):
+def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry=None, goes_tb_filepath=None, output_filepath=None):
     '''Given an ASTER thermal infrared radiance GeoTiff image, a GOES ABI thermal infrared radiance GeoTiff image,
        and a GOES ABI GeoTiff image defining pixel footprint "zones", compute zonal statistics for each GOES pixel
        footprint. Compute the difference between the GOES ABI radiance and ASTER zonal mean radiance.
