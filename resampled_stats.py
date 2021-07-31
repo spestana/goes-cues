@@ -168,23 +168,34 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
     
     ### Resampled Dataframe, Timeseries "Boxplots" ###
     # mean marker
-    resampled_df.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='Mean', ax=ax[1])
+    resampled_df.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='Mean difference', ax=ax[1])
     # median marker
     #resampled_df.medians.plot(linestyle='none', marker='^', markerfacecolor='w', markeredgecolor='k', zorder=98, label='Median', ax=ax[1])
     # mode marker
     #resampled_df.modes.plot(linestyle='none', marker='+', color='k', label='Mode', zorder=97, ax=ax[1])
     
-    # lower and upper quartile error bars
+    ## lower and upper quartile error bars
+    #ax[1].errorbar(x=resampled_df.index, 
+    #            y=resampled_df.means,
+    #            yerr=np.array([np.abs(resampled_df.qLower-resampled_df.means), 
+    #                           np.abs(resampled_df.qUpper-resampled_df.means)]),
+    #            fmt='none',
+    #            linewidth=4,
+    #            color='k',
+    #            alpha=0.3,
+    #            capsize=None,
+    #            label='IQR')
+    
+    # +/- 1 standard deviation error bars
     ax[1].errorbar(x=resampled_df.index, 
                 y=resampled_df.means,
-                yerr=np.array([np.abs(resampled_df.qLower-resampled_df.means), 
-                               np.abs(resampled_df.qUpper-resampled_df.means)]),
+                yerr=resampled_df.stds,
                 fmt='none',
                 linewidth=4,
                 color='k',
                 alpha=0.3,
                 capsize=None,
-                label='IQR')
+                label='$\pm 1 \sigma$ difference')
     
     ax[1].axhline(0,linestyle='-',color='k',linewidth=1)
     plt.legend()
