@@ -60,6 +60,7 @@ def summary_stats(_a, _b):
         'slope' : slope,
         'intercept' : intercept,
         'r_value' : r_value,
+        'r_squared' : r_value**2,
         'p_value' : p_value,
         'std_err' : std_err
         }
@@ -161,7 +162,7 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
                           color = '#000000',
                           ec='none',
                           lw=1, legend=False)
-    ax[0].axhline(0,color='lightgrey',linestyle='-')
+    ax[0].axhline(0,color='lightgrey',linestyle=':',lw=1)
     ax[0].set_title('Difference Histogram')
     ax[0].set_xlabel('Number of Observations\nTotal: {}'.format(int(original_df.count())))
     ax[0].set_xlim((xmin,xmax))
@@ -197,11 +198,148 @@ def resampled_plot(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=40
                 capsize=None,
                 label='$\pm 1 \sigma$ difference')
     
-    ax[1].axhline(0,linestyle='-',color='k',linewidth=1)
+    ax[1].axhline(0,color='lightgrey',linestyle=':',lw=1)
     plt.legend()
     
     # Format shared y-axis
     ax[0].set_ylim(ymin,ymax);
-    ax[0].set_ylabel('GOES $T_{B}$ - CUES $T_{SS}$ [$\Delta\degree C$]')
+    ax[0].set_ylabel('$T_{B}$ - $T_{SS}$ [$\Delta\degree C$]')
+    
+    return fig, ax
+
+def resampled_plot2(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=400, nbins=100):
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(8,4), 
+                           tight_layout=True, sharey=True,
+                           gridspec_kw={'width_ratios': [1, 1]})
+    
+    ### Original Dataframe, Histogram ###
+    original_df.plot.hist(ax=ax[0],
+                          bins=nbins, 
+                          orientation='horizontal',
+                          color = '#000000',
+                          ec='none',
+                          lw=1, legend=False)
+    ax[0].axhline(0,color='lightgrey',linestyle=':',lw=1)
+    ax[0].text(0.79, 0.9, f'mean:{np.round(original_df.mean().values[0],1)}\n$\sigma$:{np.round(original_df.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
+    ax[0].set_title('Difference Histogram')
+    ax[0].set_xlabel('Number of Observations\nTotal: {}'.format(int(original_df.count())))
+    ax[0].set_xlim((xmin,xmax))
+    
+    ### Resampled Dataframe, Timeseries "Boxplots" ###
+    # mean marker
+    resampled_df.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='Mean difference', ax=ax[1])
+    # median marker
+    #resampled_df.medians.plot(linestyle='none', marker='^', markerfacecolor='w', markeredgecolor='k', zorder=98, label='Median', ax=ax[1])
+    # mode marker
+    #resampled_df.modes.plot(linestyle='none', marker='+', color='k', label='Mode', zorder=97, ax=ax[1])
+    
+    ## lower and upper quartile error bars
+    #ax[1].errorbar(x=resampled_df.index, 
+    #            y=resampled_df.means,
+    #            yerr=np.array([np.abs(resampled_df.qLower-resampled_df.means), 
+    #                           np.abs(resampled_df.qUpper-resampled_df.means)]),
+    #            fmt='none',
+    #            linewidth=4,
+    #            color='k',
+    #            alpha=0.3,
+    #            capsize=None,
+    #            label='IQR')
+    
+    # +/- 1 standard deviation error bars
+    ax[1].errorbar(x=resampled_df.index, 
+                y=resampled_df.means,
+                yerr=resampled_df.stds,
+                fmt='none',
+                linewidth=4,
+                color='k',
+                alpha=0.3,
+                capsize=None,
+                label='$\pm 1 \sigma$ difference')
+    
+    ax[1].axhline(0,color='lightgrey',linestyle=':',lw=1)
+    plt.legend()
+    
+    # Format shared y-axis
+    ax[0].set_ylim(ymin,ymax);
+    ax[0].set_ylabel('$T_{B}$ - $T_{SS}$ [$\Delta\degree C$]')
+    
+    return fig, ax
+
+def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, ymin=-20, ymax=20, xmin=0, xmax=400, nbins=100):
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(9,4), 
+                           tight_layout=True, sharey=True,
+                           gridspec_kw={'width_ratios': [1, 1]})
+    
+    ### Original Dataframe 1, Histogram ###
+    original_df1.plot.hist(ax=ax[0],
+                          bins=nbins, 
+                          orientation='horizontal',
+                          color = '#000000',
+                          ec='none',
+                           alpha=0.9,
+                          lw=1, legend=False)
+    try:
+        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean().values[0],1)}\n$\sigma$={np.round(original_df1.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
+    except AttributeError:
+        #AttributeError: 'numpy.float64' object has no attribute 'values'
+        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean(),1)}\n$\sigma$={np.round(original_df1.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
+    ax[0].set_title('Difference Histogram')
+    ax[0].set_xlabel('Number of Observations\n n={}'.format(int(original_df1.count())))
+    ax[0].set_xlim((xmin,xmax))
+    ### Original Dataframe 2, Histogram ###
+    original_df2.plot.hist(ax=ax[0],
+                          bins=nbins, 
+                          orientation='horizontal',
+                          color = '#2ca25f',
+                          ec='none',
+                          alpha=0.7,
+                          lw=1, legend=False)
+    try:
+        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean().values[0],1)}\n$\sigma$={np.round(original_df2.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color='#2ca25f')
+    except AttributeError:
+        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean(),1)}\n$\sigma$={np.round(original_df2.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color='#2ca25f')
+    ax[0].set_title('Difference Histogram')
+    ax[0].set_xlabel('Number of Observations\n n={}'.format(int(original_df2.count())))
+    ax[0].set_xlim((xmin,xmax))
+    
+    
+    
+    ### Resampled Dataframe 1, Timeseries "Boxplots" ###
+    # mean marker
+    resampled_df1.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='mean $T_{B} - T_{ss}$', ax=ax[1])    
+    # +/- 1 standard deviation error bars
+    ax[1].errorbar(x=resampled_df1.index, 
+                y=resampled_df1.means,
+                yerr=resampled_df1.stds,
+                fmt='none',
+                linewidth=4,
+                color='k',
+                alpha=0.3,
+                capsize=None,
+                label='$\pm 1 \sigma \, T_{B} - T_{ss}$')
+    ### Resampled Dataframe 2, Timeseries "Boxplots" ###
+    # mean marker
+    resampled_df2.means.plot(linestyle='none', marker='o', markerfacecolor='#2ca25f', markeredgecolor='w', zorder=99, label='mean $T_{B} - T_{a}$', ax=ax[1])    
+    # +/- 1 standard deviation error bars
+    ax[1].errorbar(x=resampled_df2.index, 
+                y=resampled_df2.means,
+                yerr=resampled_df2.stds,
+                fmt='none',
+                linewidth=4,
+                color='#2ca25f',
+                alpha=0.3,
+                capsize=None,
+                label='$\pm 1 \sigma \, T_{B} - T_{a}$')
+    
+    # add zero lines
+    ax[0].axhline(0,color='lightgrey',linestyle=':',lw=1)
+    ax[1].axhline(0,color='lightgrey',linestyle=':',lw=1)
+    plt.legend()
+    
+    # Format shared y-axis
+    ax[0].set_ylim(ymin,ymax);
+    ax[0].set_ylabel('[$\Delta\degree C$]')
     
     return fig, ax
