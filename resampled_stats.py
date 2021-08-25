@@ -266,7 +266,7 @@ def resampled_plot2(original_df, resampled_df, ymin=-20, ymax=20, xmin=0, xmax=4
     
     return fig, ax
 
-def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, ymin=-20, ymax=20, xmin=0, xmax=400, nbins=100):
+def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, original_df3, resampled_df3, ymin=-20, ymax=20, xmin=0, xmax=400, nbins=100, color1='#a25f2c', color2='#2ca25f', color3='k'):
 
     fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(9,4), 
                            tight_layout=True, sharey=True,
@@ -276,15 +276,15 @@ def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, ym
     original_df1.plot.hist(ax=ax[0],
                           bins=nbins, 
                           orientation='horizontal',
-                          color = '#000000',
+                          color = color1,
                           ec='none',
-                           alpha=0.9,
+                          alpha=0.5,
                           lw=1, legend=False)
     try:
-        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean().values[0],1)}\n$\sigma$={np.round(original_df1.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
+        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean().values[0],1)}\n$\sigma$={np.round(original_df1.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color1)
     except AttributeError:
         #AttributeError: 'numpy.float64' object has no attribute 'values'
-        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean(),1)}\n$\sigma$={np.round(original_df1.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes)
+        ax[0].text(0.7, 0.9, f'mean={np.round(original_df1.mean(),1)}\n$\sigma$={np.round(original_df1.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color1)
     ax[0].set_title('Difference Histogram')
     ax[0].set_xlabel('Number of Observations\n n={}'.format(int(original_df1.count())))
     ax[0].set_xlim((xmin,xmax))
@@ -292,46 +292,73 @@ def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, ym
     original_df2.plot.hist(ax=ax[0],
                           bins=nbins, 
                           orientation='horizontal',
-                          color = '#2ca25f',
+                          color = color2,
                           ec='none',
-                          alpha=0.7,
+                          alpha=0.5,
                           lw=1, legend=False)
     try:
-        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean().values[0],1)}\n$\sigma$={np.round(original_df2.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color='#2ca25f')
+        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean().values[0],1)}\n$\sigma$={np.round(original_df2.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color2)
     except AttributeError:
-        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean(),1)}\n$\sigma$={np.round(original_df2.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color='#2ca25f')
+        ax[0].text(0.7, 0.1, f'mean={np.round(original_df2.mean(),1)}\n$\sigma$={np.round(original_df2.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color2)
     ax[0].set_title('Difference Histogram')
     ax[0].set_xlabel('Number of Observations\n n={}'.format(int(original_df2.count())))
+    ax[0].set_xlim((xmin,xmax))
+    ### Original Dataframe 3, Histogram ###
+    original_df3.plot.hist(ax=ax[0],
+                          bins=nbins, 
+                          orientation='horizontal',
+                          color = color3,
+                          ec='none',
+                          alpha=0.5,
+                          lw=1, legend=False)
+    try:
+        ax[0].text(0.7, 0.7, f'mean={np.round(original_df2.mean().values[0],1)}\n$\sigma$={np.round(original_df3.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color3)
+    except AttributeError:
+        ax[0].text(0.7, 0.7, f'mean={np.round(original_df3.mean(),1)}\n$\sigma$={np.round(original_df3.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color3)
+    ax[0].set_title('Difference Histogram')
+    ax[0].set_xlabel('Number of Observations\n n={}'.format(int(original_df3.count())))
     ax[0].set_xlim((xmin,xmax))
     
     
     
     ### Resampled Dataframe 1, Timeseries "Boxplots" ###
     # mean marker
-    resampled_df1.means.plot(linestyle='none', marker='o', markerfacecolor='w', markeredgecolor='k', zorder=99, label='mean $T_{B} - T_{ss}$', ax=ax[1])    
+    resampled_df1.means.plot(linestyle='none', marker='o', markerfacecolor=color1, markeredgecolor='w', zorder=99, label='mean $T_{B} - T_{ss}$', ax=ax[1])    
     # +/- 1 standard deviation error bars
     ax[1].errorbar(x=resampled_df1.index, 
                 y=resampled_df1.means,
                 yerr=resampled_df1.stds,
                 fmt='none',
                 linewidth=4,
-                color='k',
+                color=color1,
                 alpha=0.3,
                 capsize=None,
                 label='$\pm 1 \sigma \, T_{B} - T_{ss}$')
     ### Resampled Dataframe 2, Timeseries "Boxplots" ###
     # mean marker
-    resampled_df2.means.plot(linestyle='none', marker='o', markerfacecolor='#2ca25f', markeredgecolor='w', zorder=99, label='mean $T_{B} - T_{a}$', ax=ax[1])    
+    resampled_df2.means.plot(linestyle='none', marker='o', markerfacecolor=color2, markeredgecolor='w', zorder=99, label='mean $T_{B} - T_{a}$', ax=ax[1])    
     # +/- 1 standard deviation error bars
     ax[1].errorbar(x=resampled_df2.index, 
                 y=resampled_df2.means,
                 yerr=resampled_df2.stds,
                 fmt='none',
                 linewidth=4,
-                color='#2ca25f',
+                color=color2,
                 alpha=0.3,
                 capsize=None,
                 label='$\pm 1 \sigma \, T_{B} - T_{a}$')
+    ### Resampled Dataframe 3, Timeseries "Boxplots" ###
+    resampled_df3.means.plot(linestyle='none', marker='o', markerfacecolor=color3, markeredgecolor='w', zorder=99, label='mean $T_{B} - T_{sfc}$', ax=ax[1])    
+    # +/- 1 standard deviation error bars
+    ax[1].errorbar(x=resampled_df3.index, 
+                y=resampled_df3.means,
+                yerr=resampled_df3.stds,
+                fmt='none',
+                linewidth=4,
+                color=color3,
+                alpha=0.3,
+                capsize=None,
+                label='$\pm 1 \sigma \, T_{B} - T_{sfc}$')
     
     # add zero lines
     ax[0].axhline(0,color='lightgrey',linestyle=':',lw=1)
