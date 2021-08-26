@@ -312,7 +312,7 @@ def resampled_plot3(original_df1, resampled_df1, original_df2, resampled_df2, or
                           alpha=0.5,
                           lw=1, legend=False)
     try:
-        ax[0].text(0.7, 0.7, f'mean={np.round(original_df2.mean().values[0],1)}\n$\sigma$={np.round(original_df3.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color3)
+        ax[0].text(0.7, 0.7, f'mean={np.round(original_df3.mean().values[0],1)}\n$\sigma$={np.round(original_df3.std().values[0],1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color3)
     except AttributeError:
         ax[0].text(0.7, 0.7, f'mean={np.round(original_df3.mean(),1)}\n$\sigma$={np.round(original_df3.std(),1)}', horizontalalignment='left',verticalalignment='center', transform=ax[0].transAxes, color=color3)
     ax[0].set_title('Difference Histogram')
