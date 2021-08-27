@@ -64,25 +64,71 @@ def goesBrightnessTemp(rad, band=None, fk1=None, fk2=None, bc1=None, bc2=None):
 def planck(l, T):
     
     '''
-    Planck function to compute the spectral radiance (B) at wavelength (l) for an object at temperature (T).
+    Planck function to compute the spectral radiance (L) at wavelength (l) for an object at temperature (T).
     Note that this does not take emissivity into account.
-    (From Dozier & Warren, 1982)
+    (From Dozier & Warren, 1982; Lundquist et al., 2018)
     
     Inputs:
         l: wavelength [m]
         T: thermodynamic temperature [K]
         
     Output:
-        B: spectral radiance [W m-2 sr-1 m-1]
+        L: spectral radiance [W m-2 sr-1 m-1]
     '''
     
-    h = 6.63e-34 # planck's constant [Js]
+    h = 6.62606896e-34 # planck's constant [Js]
     c = 299792458 #speed of light [m/s]
-    k = 1.38e-23 # boltzmann's constant [J/K]
+    k = 1.3806504e-23 # boltzmann's constant [J/K]
     
-    B = (2 * h * (c**(2)) * (l**(-5))) / (np.exp( (h*c) / (k*l*T) ) - 1)
+    L = (2 * h * (c**(2)) * (l**(-5))) / (np.exp( (h*c) / (k*l*T) ) - 1)
     
-    return B
+    return L
+
+def planckinv(l, L):
+    
+    '''
+    Planck function to compute the (monochromatic) brightness temperature (Tb) at wavelength (l) given an observed spectral radiance (L).
+    (From Dozier & Warren, 1982; Lundquist et al., 2018)
+    
+    Inputs:
+        l: wavelength [m]
+        L: spectral radiance [W m-2 sr-1 m-1]
+        
+    Output:
+        Tb: brightness temperature [K]
+    '''
+    
+    h = 6.62606896e-34 # planck's constant [Js]
+    c = 299792458 #speed of light [m/s]
+    k = 1.3806504e-23 # boltzmann's constant [J/K]   
+    
+    _a = ( 2 * h * (c**2) ) / ( l**(5) * L )
+    _b = np.log1p(_a)
+    Tb = ( h * c ) / ( k * l * _b )
+    
+    return Tb
+
+def planck_um(l, T):
+    
+    '''
+    Planck function to compute the spectral radiance (L) at wavelength (l) for an object at temperature (T).
+    Note that this does not take emissivity into account.
+    (From https://ncc.nesdis.noaa.gov/data/planck.html)
+    
+    Inputs:
+        l: wavelength in microns [um]
+        T: thermodynamic temperature [K]
+        
+    Output:
+        L: spectral radiance [W m-2 sr-1 um-1]
+    '''
+    
+    c1 = 1.191042e8 # [W m-2 sr-1 um-4]
+    c2 = 1.4387752e4 # [K um]
+    
+    L = c1 / (l**5 * (np.exp(c2/(l*T)) - 1))
+    
+    return L
 
 def abi_radiance_wavenumber_to_wavelength(goes, channel, rad_wn):
     ''' Convert GOES ABI Radiance units from
