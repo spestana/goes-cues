@@ -35,7 +35,6 @@ def emissive_convert_dn(modis_src):
     # replace nodata values (0) with np.nan in DN array
     modis_src_masked = modis_src.where(modis_src!=0)
     
-    
     for band in range(modis_src_masked.shape[0]):
         # apply the scale and offset to convert from DN to radiance
         # radiance = radiance_scale*( scaled_integer - radiance_offset ) 

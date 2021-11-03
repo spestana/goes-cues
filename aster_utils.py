@@ -16,7 +16,9 @@ import xarray as xr
 import xrspatial as xrs
 import rioxarray
 
+# for modis
 import modis_utils
+from pyspectral.blackbody import blackbody_rad2temp
 
 
 def tir_dn2rad(DN, band):
@@ -153,7 +155,6 @@ def mapZonalStats(zones, zonalstats, stat_name):
     zonal_stat_da = zonal_stat_da.where(zonal_stat_da!=-9999, np.nan)
 
     return zonal_stat_da        
-        
         
         
 def upscale_aster_goes_rad_zonal_stats(aster_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry=None, goes_tb_filepath=None, output_filepath=None):
@@ -410,3 +411,83 @@ def upscale_aster_modis_rad_zonal_stats(aster_rad_filepath, modis_rad_filepath, 
         ds.to_netcdf(output_filepath)
     print('>>>>>>>>>>>>>>>>>>>>>>return dataset')
     return (ds, zonalstats_df)
+
+
+
+def upscale_modis_goes_rad_zonal_stats(aster_rad_filepath, modis_rad_filepath, goes_rad_filepath, goes_zones_filepath, bounding_geometry=None, modis_band_index=10, output_filepath=None):
+    
+    #print('looking at MODIS and GOES\n{}\n{}'.format(modis_rad_filepath,goes_rad_filepath))
+    
+    # Open the ASTER thermal infrared radiance GeoTIFF image
+    aster_src = xr.open_rasterio(aster_rad_filepath)
+    
+    
+    # Use rioxarray to open the coincident GeoTIFF of MODIS Radiance
+    modis_ds = xr.open_rasterio(modis_rad_filepath)
+    # Use reproject_match to align the MODIS radiance & zones raster to the ASTER image, clip to the geometry defined above.
+    # convert from DN to Radiance and Brightness Temperature
+    modis_rad_tb = modis_utils.emissive_convert_dn(modis_ds)
+    # Select a single band from the MODIS dataset
+    # Example, for ~11 micron band, make sure to use MODIS band 31 (here this is index 10)
+    # To see a list of band numbers: use modis_ds_repr_match.band_names.split(',')
+    modis_rad_tb_single_band = modis_rad_tb.isel(band=modis_band_index)
+    
+    
+    ## use Reproject_Match to reproject the MODIS geotiff into the same CRS as the ASTER geotiff
+    modis_rad_tb_single_band_repr_match = modis_rad_tb_single_band.rio.reproject_match(aster_src)
+    
+    
+    # Use rioxarray to open a GeoTIFF of GOES-16 ABI Radiance that has been orthorectified for our study area
+    goes_rad = xr.open_rasterio(goes_rad_filepath)
+    # Open its associated GOES "zone_labels" GeoTIFF raster that was generated at the same time the image was orthorectified
+    goes_zones = xr.open_rasterio(goes_zones_filepath)
+    
+    # Reproject match goes rad raster to MODIS, clip to geometry,  and squeeze out extra dim
+    goes_rad_repr = goes_rad.rio.reproject_match(aster_src)
+    
+    # Reproject match goes zones raster to aster, clip to geometry, set datatype to integer, and squeeze out extra dim
+    goes_zones_repr = goes_zones.rio.reproject_match(aster_src).astype('int').squeeze().rename('goes_zones')   
+    # convert GOES radiance (mW m^-2 sr^-1 1/cm^-1) to match MODIS and ASTER (W m^-2 sr^-1 um^-1)
+    goes_rad_repr = (goes_rad_repr / 1000) * (61.5342/0.7711)
+    
+    ### Compute zonal statistics and format results ###
+    # Compute zonal statistics from the MODIS image, using the GOES zone labels:
+    zonalstats_df = xrs.zonal.stats(goes_zones_repr, 
+                                 modis_rad_tb_single_band_repr_match.radiance, 
+                                 stat_funcs=['mean', 'max', 'min', 'std', 'var', 'count'])
+    # Convert zonal statistics dataframe to xarray dataset
+    zonalstats = xr.Dataset(zonalstats_df)
+    print('>>>>>>>>>>>>>>>>>>>>>>map results back onto grid')
+    ### Map the results from xrs.zonal.stats() back into the original zones grid ###
+    zonal_means = mapZonalStats(goes_zones_repr, zonalstats, 'mean').rename('mod_goes_mean_rad')
+    zonal_max = mapZonalStats(goes_zones_repr, zonalstats, 'max').rename('mod_goes_max_rad')
+    zonal_min = mapZonalStats(goes_zones_repr, zonalstats, 'min').rename('mod_goes_min_rad')
+    zonal_std = mapZonalStats(goes_zones_repr, zonalstats, 'std').rename('mod_goes_std_rad')
+    zonal_var = mapZonalStats(goes_zones_repr, zonalstats, 'var').rename('mod_goes_var_rad')
+    zonal_count = mapZonalStats(goes_zones_repr, zonalstats, 'count')
+    print('>>>>>>>>>>>>>>>>>>>>>>compute brightness temperature')
+    
+    
+    rad2tb_stats = []
+    for this_modis_rad in [zonal_means, zonal_max, zonal_min, zonal_std, zonal_var]:
+            # MODIS radiance to brightness temperature
+            this_modis_tb = blackbody_rad2temp(11.03*1e-6, this_modis_rad*1e6) # multiply radiance here by 1e6 to convert micron to meter
+            this_modis_tb[np.isnan(this_modis_rad)] = np.nan
+            this_modis_tb = xr.DataArray(this_modis_tb.data, dims=["y", "x"], 
+                                coords=[modis_rad_tb_single_band_repr_match.y.values, 
+                                        modis_rad_tb_single_band_repr_match.x.values], 
+                                attrs=modis_rad_tb_single_band_repr_match.attrs,
+                                name='{}'.format(this_modis_rad.name))
+            this_modis_tb.rio.set_crs(aster_src.crs, inplace=True)
+            this_modis_tb = this_modis_tb.rename('{}2tbK'.format(this_modis_rad.name))
+            rad2tb_stats.append(this_modis_tb)
+    
+    modis_tb = xr.merge(rad2tb_stats).rio.set_crs(aster_src.crs)
+    
+    
+    # If an output_filepath was specified, save the resulting dataset to a netcdf file
+    if output_filepath != None:
+        modis_tb.to_netcdf(output_filepath)
+    print('>>>>>>>>>>>>>>>>>>>>>>return dataset')
+    return (modis_tb, zonalstats_df)
+    
